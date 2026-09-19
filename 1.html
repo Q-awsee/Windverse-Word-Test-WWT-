@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>动态词库抽查器 Pro</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --bg: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-main: #1f2937;
+            --text-sub: #6b7280;
+            --memo-bg: #fefce8;
+            --error-bg: #fef2f2;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 20px;
+            gap: 15px;
+        }
+
+        .main-container {
+            background: var(--card-bg);
+            width: 100%;
+            max-width: 700px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        /* 侧边栏备忘录 */
+        .memo-toggle {
+            position: fixed;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 15px 8px;
+            border-radius: 8px 0 0 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            writing-mode: vertical-rl;
+            letter-spacing: 2px;
+            z-index: 100;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+        }
+
+        .memo-panel {
+            position: fixed;
+            right: -320px;
+            top: 0;
+            width: 300px;
+            height: 100vh;
+            background: var(--memo-bg);
+            box-shadow: -5px 0 20px rgba(0,0,0,0.1);
+            transition: right 0.3s ease;
+            z-index: 99;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .memo-panel.open { right: 0; }
+
+        .memo-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .memo-header h3 { font-size: 1.1rem; color: var(--primary); }
+
+        .memo-textarea {
+            flex: 1;
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            resize: none;
+            font-size: 0.95rem;
+            outline: none;
+            background: white;
+        }
+
+        .memo-textarea:focus { border-color: var(--primary); }
+
+        .memo-save-tip {
+            font-size: 0.75rem;
+            color: var(--success);
+            margin-top: 8px;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .memo-save-tip.show { opacity: 1; }
+
+        /* 主界面头部 */
+        .header {
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 1.25rem; font-weight: 700; color: var(--primary); }
+        .status-badge {
+            font-size: 0.85rem;
+            background: #e0e7ff;
+            color: var(--primary);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        /* 标签页切换 */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-sub);
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab:hover { color: var(--primary); background: #f9fafb; }
+        .tab.active { color: var(--primary); border-bottom-color: var(--primary); background: #eef2ff; }
+
+        .page { display: none; padding: 25px; animation: fadeIn 0.4s ease; }
+        .page.active { display: block; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 词库列表样式 */
+        .vocab-section { margin-bottom: 20px; }
+        .vocab-section label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.9rem; }
+
+        .vocab-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .vocab-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            border-bottom: 1px solid #f3f4f6;
+            gap: 10px;
+        }
+
+        .vocab-item:last-child { border-bottom: none; }
+
+        .vocab-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+
+        .vocab-name {
+            flex: 1;
+            font-size: 0.95rem;
+            border: 1px solid transparent;
+            background: transparent;
+            outline: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: text;
+        }
+
+        .vocab-name:hover { background: #f3f4f6; }
+        .vocab-name:focus { background: white; border-color: var(--primary); }
+
+        .vocab-word-count {
+            font-size: 0.8rem;
+            color: var(--text-sub);
+            white-space: nowrap;
+        }
+
+        .vocab-delete {
+            background: none;
+            border: none;
+            color: var(--danger);
+            cursor: pointer;
+            font-size: 1.1rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .vocab-delete:hover { background: #fee2e2; }
+
+        .add-vocab-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .add-vocab-row input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            outline: none;
+        }
+
+        .add-vocab-row input:focus { border-color: var(--primary); }
+
+        /* 按钮通用样式 */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            font-size: 0.95rem;
+        }
+
+        .btn-sm { padding: 6px 14px; font-size: 0.85rem; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-success:hover { background: #059669; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-warning { background: var(--warning); color: white; }
+        .btn-warning:hover { background: #d97706; }
+        .btn-outline { background: transparent; border: 1px solid #d1d5db; color: var(--text-sub); }
+        .btn-outline:hover { background: #f9fafb; color: var(--text-main); }
+        .btn-full { width: 100%; }
+
+        /* 输入区域 */
+        .input-group { margin-bottom: 15px; }
+        .input-group label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.9rem; }
+        textarea.word-input {
+            width: 100%;
+            height: 120px;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            resize: vertical;
+            font-size: 1rem;
+            outline: none;
+        }
+        textarea.word-input:focus { border-color: var(--primary); }
+
+        /* 抽查卡片显示 */
+        .card-display {
+            text-align: center;
+            margin-bottom: 25px;
+            padding: 40px 0;
+            background: #f9fafb;
+            border-radius: 12px;
+            border: 1px dashed #d1d5db;
+        }
+        .word-text {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--text-main);
+            word-break: break-word;
+        }
+        .word-source {
+            font-size: 0.8rem;
+            color: var(--text-sub);
+            margin-top: 8px;
+        }
+
+        .controls { display: flex; gap: 15px; }
+        .btn-action { flex: 1; padding: 15px; font-size: 1.1rem; }
+        .btn-fail { background: #fee2e2; color: var(--danger); }
+        .btn-fail:hover { background: #fecaca; }
+        .btn-pass { background: #d1fae5; color: var(--success); }
+        .btn-pass:hover { background: #a7f3d0; }
+
+        .keyboard-hint {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 0.8rem;
+            color: var(--text-sub);
+        }
+        .key {
+            display: inline-block;
+            padding: 2px 6px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            background: white;
+            font-family: monospace;
+            margin: 0 2px;
+        }
+
+        /* 结果页面 */
+        .result-summary {
+            text-align: center;
+            padding: 30px;
+            background: #f9fafb;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .result-summary .big-number {
+            font-size: 3rem;
+            font-weight: 800;
+        }
+
+        .result-summary .label {
+            font-size: 0.9rem;
+            color: var(--text-sub);
+        }
+
+        .result-pass { color: var(--success); }
+        .result-fail { color: var(--danger); }
+
+        .failed-list-for-error {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .failed-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            border-bottom: 1px solid #f3f4f6;
+            gap: 10px;
+        }
+
+        .failed-item:last-child { border-bottom: none; }
+
+        .failed-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--danger);
+        }
+
+        .failed-word {
+            flex: 1;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .failed-source {
+            font-size: 0.8rem;
+            color: var(--text-sub);
+        }
+
+        /* 错题本样式 */
+        .error-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+        }
+
+        .error-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            border-bottom: 1px solid #f3f4f6;
+            gap: 12px;
+        }
+
+        .error-item:last-child { border-bottom: none; }
+
+        .error-word {
+            flex: 1;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .error-source {
+            font-size: 0.8rem;
+            color: var(--text-sub);
+        }
+
+        .error-count {
+            font-size: 0.85rem;
+            color: var(--danger);
+            font-weight: 600;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-sub);
+        }
+
+        .empty-state .icon { font-size: 3rem; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<!-- 侧边备忘录 -->
+<button class="memo-toggle" id="memoToggle" onclick="toggleMemo()">📝 备忘录</button>
+<div class="memo-panel" id="memoPanel">
+    <div class="memo-header">
+        <h3>📝 备忘录</h3>
+        <button class="btn btn-sm btn-outline" onclick="toggleMemo()">✕</button>
+    </div>
+    <textarea class="memo-textarea" id="memoText" placeholder="在这里记录任何你想记的东西..." oninput="autoSaveMemo()"></textarea>
+    <div class="memo-save-tip" id="memoTip">✅ 已自动保存</div>
+</div>
+
+<div class="main-container">
+    <div class="header">
+        <h1>📚 动态词库抽查器 Pro</h1>
+        <div id="statusBadge" class="status-badge">准备就绪</div>
+    </div>
+
+    <div class="tabs" id="mainTabs">
+        <div class="tab active" data-tab="setup" onclick="switchTab('setup')">📂 词库管理</div>
+        <div class="tab" data-tab="errorBook" onclick="switchTab('errorBook')">❌ 错题本</div>
+    </div>
+
+    <!-- 页面1: 词库管理与设置 -->
+    <div id="setupPage" class="page active">
+        <div class="vocab-section">
+            <label>📂 我的词库（勾选要抽查的词库）</label>
+            <div class="vocab-list" id="vocabList">
+                <!-- 词库列表将通过JS生成 -->
+            </div>
+            <div class="add-vocab-row">
+                <input type="text" id="newVocabName" placeholder="新建词库名称..." onkeydown="if(event.key==='Enter')addVocab()">
+                <button class="btn btn-sm btn-primary" onclick="addVocab()">+ 新建</button>
+            </div>
+        </div>
+
+        <div class="input-group" id="inputSection" style="display:none;">
+            <label id="currentVocabLabel">📝 输入单词（每行一个）</label>
+            <textarea class="word-input" id="wordInput" placeholder="apple&#10;banana&#10;computer"></textarea>
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <button class="btn btn-sm btn-success" onclick="saveWords()">💾 保存单词</button>
+                <button class="btn btn-sm btn-outline" onclick="hideInputSection()">取消</button>
+            </div>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-bottom:15px;">
+            <button class="btn btn-primary btn-full" id="startBtn" onclick="startCheck()" disabled>开始抽查</button>
+        </div>
+    </div>
+
+    <!-- 页面2: 抽查进行中 -->
+    <div id="checkPage" class="page">
+        <div class="card-display">
+            <div class="word-text" id="currentWord">Ready?</div>
+            <div class="word-source" id="currentSource"></div>
+        </div>
+        
+        <div class="controls">
+            <button class="btn btn-action btn-fail" onclick="handleResult(false)">❌ 不认识 (Space)</button>
+            <button class="btn btn-action btn-pass" onclick="handleResult(true)">✅ 认识 (Enter)</button>
+        </div>
+        
+        <div class="keyboard-hint">
+            快捷键: <span class="key">←</span> 不认识 &nbsp;|&nbsp; <span class="key">→</span> 认识 &nbsp;|&nbsp; <span class="key">Esc</span> 退出
+        </div>
+    </div>
+
+    <!-- 页面3: 抽查结果 -->
+    <div id="resultPage" class="page">
+        <div class="result-summary">
+            <div class="big-number result-pass" id="passCount">0</div>
+            <div class="label">✅ 已掌握</div>
+            <div style="margin-top:15px;">
+                <div class="big-number result-fail" id="failCount">0</div>
+                <div class="label">❌ 未掌握</div>
+            </div>
+        </div>
+
+        <div id="failedForErrorSection" style="display:none;">
+            <label style="display:block; margin-bottom:10px; font-weight:600; font-size:0.95rem;">
+                ☑️ 勾选要加入错题本的单词（默认全选）
+            </label>
+            <div class="failed-list-for-error" id="failedForErrorList"></div>
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-danger btn-full" onclick="addToErrorBook()">📥 加入错题本</button>
+                <button class="btn btn-outline" onclick="skipAddToError()">跳过</button>
+            </div>
+        </div>
+
+        <div style="margin-top:20px; text-align:center;">
+            <button class="btn btn-primary" onclick="resetApp()">🔄 返回主页</button>
+        </div>
+    </div>
+
+    <!-- 页面4: 错题本 -->
+    <div id="errorBookPage" class="page">
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-number" id="totalErrors">0</div>
+                <div class="stat-label">总错题数</div>
+            </div>
+        </div>
+        
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <label style="font-weight:600;">📚 错题列表</label>
+            <button class="btn btn-sm btn-danger" onclick="clearAllErrors()">🗑️ 清空错题</button>
+        </div>
+
+        <div class="error-list" id="errorListContainer">
+            <!-- 错题列表 JS 生成 -->
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 数据状态管理 ---
+    let vocabularies = JSON.parse(localStorage.getItem('vocabularies')) || [
+        { id: 1, name: '默认词库', words: ['hello', 'world', 'javascript'] },
+        { id: 2, name: '高频词汇', words: ['apple', 'banana', 'computer'] }
+    ];
+    
+    let errorBook = JSON.parse(localStorage.getItem('errorBook')) || [];
+    let currentEditingId = null;
+    let checkQueue = [];
+    let currentIndex = 0;
+    let passCount = 0;
+    let failCount = 0;
+    let currentFailedWords = [];
+
+    // --- 初始化 ---
+    window.onload = function() {
+        renderVocabList();
+        loadMemo();
+        updateStartButtonState();
+    };
+
+    // --- 标签页切换 ---
+    function switchTab(tabName) {
+        // 隐藏所有页面
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        
+        // 显示目标页面
+        if (tabName === 'setup') {
+            document.getElementById('setupPage').classList.add('active');
+            document.querySelector('[data-tab="setup"]').classList.add('active');
+        } else if (tabName === 'errorBook') {
+            document.getElementById('errorBookPage').classList.add('active');
+            document.querySelector('[data-tab="errorBook"]').classList.add('active');
+            renderErrorBook();
+        }
+    }
+
+    // --- 词库管理功能 ---
+    function renderVocabList() {
+        const list = document.getElementById('vocabList');
+        list.innerHTML = '';
+        
+        vocabularies.forEach(vocab => {
+            const div = document.createElement('div');
+            div.className = 'vocab-item';
+            div.innerHTML = `
+                <input type="checkbox" onchange="updateStartButtonState()" data-id="${vocab.id}" ${isChecked(vocab.id) ? 'checked' : ''}>
+                <input type="text" class="vocab-name" value="${vocab.name}" onchange="renameVocab(${vocab.id}, this.value)" onclick="showInputSection(${vocab.id})">
+                <span class="vocab-word-count">${vocab.words.length} 词</span>
+                <button class="vocab-delete" onclick="deleteVocab(${vocab.id})">×</button>
+            `;
+            list.appendChild(div);
+        });
+    }
+
+    function isChecked(id) {
+        const checkbox = document.querySelector(`input[data-id="${id}"]`);
+        return checkbox ? checkbox.checked : false;
+    }
+
+    function addVocab() {
+        const input = document.getElementById('newVocabName');
+        const name = input.value.trim();
+        if (!name) return alert('请输入词库名称');
+        
+        const newId = Date.now();
+        vocabularies.push({ id: newId, name: name, words: [] });
+        saveData();
+        renderVocabList();
+        input.value = '';
+        
+        // 自动打开编辑框
+        showInputSection(newId);
+    }
+
+    function deleteVocab(id) {
+        if (!confirm('确定删除这个词库吗？')) return;
+        vocabularies = vocabularies.filter(v => v.id !== id);
+        saveData();
+        renderVocabList();
+        updateStartButtonState();
+        hideInputSection();
+    }
+
+    function renameVocab(id, newName) {
+        const vocab = vocabularies.find(v => v.id === id);
+        if (vocab) {
+            vocab.name = newName;
+            saveData();
+        }
+    }
+
+    function showInputSection(id) {
+        currentEditingId = id;
+        const vocab = vocabularies.find(v => v.id === id);
+        if (!vocab) return;
+
+        document.getElementById('inputSection').style.display = 'block';
+        document.getElementById('currentVocabLabel').innerText = `📝 编辑 "${vocab.name}" (每行一个单词)`;
+        document.getElementById('wordInput').value = vocab.words.join('\n');
+        document.getElementById('wordInput').focus();
+    }
+
+    function hideInputSection() {
+        document.getElementById('inputSection').style.display = 'none';
+        currentEditingId = null;
+    }
+
+    function saveWords() {
+        if (!currentEditingId) return;
+        const text = document.getElementById('wordInput').value;
+        const words = text.split('\n').map(w => w.trim()).filter(w => w !== '');
+        
+        const vocab = vocabularies.find(v => v.id === currentEditingId);
+        if (vocab) {
+            vocab.words = words;
+            saveData();
+            renderVocabList();
+            alert('保存成功！');
+            hideInputSection();
+        }
+    }
+
+    function updateStartButtonState() {
+        const checkboxes = document.querySelectorAll('#vocabList input[type="checkbox"]:checked');
+        const btn = document.getElementById('startBtn');
+        btn.disabled = checkboxes.length === 0;
+        btn.innerText = checkboxes.length === 0 ? '请至少选择一个词库' : '开始抽查';
+    }
+
+    // --- 抽查逻辑 ---
+    function startCheck() {
+        const selectedIds = Array.from(document.querySelectorAll('#vocabList input[type="checkbox"]:checked')).map(cb => parseInt(cb.dataset.id));
+        if (selectedIds.length === 0) return;
+
+        // 构建抽查队列
+        checkQueue = [];
+        selectedIds.forEach(id => {
+            const vocab = vocabularies.find(v => v.id === id);
+            if (vocab && vocab.words.length > 0) {
+                vocab.words.forEach(word => {
+                    checkQueue.push({ word: word, source: vocab.name });
+                });
+            }
+        });
+
+        if (checkQueue.length === 0) return alert('选中的词库为空，请先添加单词');
+
+        // 打乱顺序
+        checkQueue.sort(() => Math.random() - 0.5);
+
+        // 重置计数
+        currentIndex = 0;
+        passCount = 0;
+        failCount = 0;
+        currentFailedWords = [];
+
+        // 切换页面
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById('checkPage').classList.add('active');
+        document.getElementById('statusBadge').innerText = '抽查中...';
+
+        showNextCard();
+    }
+
+    function showNextCard() {
+        if (currentIndex >= checkQueue.length) {
+            finishCheck();
+            return;
+        }
+
+        const item = checkQueue[currentIndex];
+        document.getElementById('currentWord').innerText = item.word;
+        document.getElementById('currentSource').innerText = `来源: ${item.source}`;
+    }
+
+    function handleResult(isPass) {
+        if (isPass) {
+            passCount++;
+        } else {
+            failCount++;
+            currentFailedWords.push(checkQueue[currentIndex]);
+        }
+        
+        currentIndex++;
+        showNextCard();
+    }
+
+    // 键盘支持
+    document.addEventListener('keydown', function(e) {
+        if (!document.getElementById('checkPage').classList.contains('active')) return;
+        
+        if (e.key === 'ArrowRight' || e.key === 'Enter') {
+            handleResult(true);
+        } else if (e.key === 'ArrowLeft' || e.key === ' ') {
+            e.preventDefault(); // 防止空格滚动页面
+            handleResult(false);
+        } else if (e.key === 'Escape') {
+            if(confirm('确定要退出抽查吗？进度将丢失。')) {
+                resetApp();
+            }
+        }
+    });
+
+    function finishCheck() {
+        document.getElementById('checkPage').classList.remove('active');
+        document.getElementById('resultPage').classList.add('active');
+        document.getElementById('statusBadge').innerText = '抽查结束';
+
+        document.getElementById('passCount').innerText = passCount;
+        document.getElementById('failCount').innerText = failCount;
+
+        const failedSection = document.getElementById('failedForErrorSection');
+        if (currentFailedWords.length > 0) {
+            failedSection.style.display = 'block';
+            renderFailedListForSelection();
+        } else {
+            failedSection.style.display = 'none';
+        }
+    }
+
+    function renderFailedListForSelection() {
+        const container = document.getElementById('failedForErrorList');
+        container.innerHTML = '';
+        
+        currentFailedWords.forEach((item, index) => {
+            const div = document.createElement('div');
+            div.className = 'failed-item';
+            div.innerHTML = `
+                <input type="checkbox" checked id="fail-${index}">
+                <label for="fail-${index}" style="flex:1; cursor:pointer;">
+                    <div class="failed-word">${item.word}</div>
+                    <div class="failed-source">${item.source}</div>
+                </label>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function addToErrorBook() {
+        const checkboxes = document.querySelectorAll('#failedForErrorList input[type="checkbox"]:checked');
+        let addedCount = 0;
+
+        checkboxes.forEach(cb => {
+            const index = parseInt(cb.id.split('-')[1]);
+            const item = currentFailedWords[index];
+            
+            // 检查是否已存在
+            const exists = errorBook.some(e => e.word === item.word && e.source === item.source);
+            if (!exists) {
+                errorBook.push({
+                    word: item.word,
+                    source: item.source,
+                    timestamp: Date.now(),
+                    count: 1
+                });
+                addedCount++;
+            } else {
+                // 如果已存在，增加计数
+                const existing = errorBook.find(e => e.word === item.word && e.source === item.source);
+                existing.count++;
+            }
+        });
+
+        saveData();
+        alert(`已成功添加 ${addedCount} 个新错题到错题本！`);
+        skipAddToError(); // 隐藏选择框
+    }
+
+    function skipAddToError() {
+        document.getElementById('failedForErrorSection').style.display = 'none';
+    }
+
+    function resetApp() {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById('setupPage').classList.add('active');
+        document.querySelector('[data-tab="setup"]').classList.add('active');
+        document.getElementById('statusBadge').innerText = '准备就绪';
+    }
+
+    // --- 错题本功能 ---
+    function renderErrorBook() {
+        const container = document.getElementById('errorListContainer');
+        document.getElementById('totalErrors').innerText = errorBook.length;
+        
+        if (errorBook.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="icon">🎉</div>
+                    <div>太棒了！目前没有错题</div>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = '';
+        // 按错误次数排序
+        const sortedErrors = [...errorBook].sort((a, b) => b.count - a.count);
+
+        sortedErrors.forEach((item, index) => {
+            // 找到原始对象以获取正确索引用于删除
+            const originalIndex = errorBook.indexOf(item);
+            
+            const div = document.createElement('div');
+            div.className = 'error-item';
+            div.innerHTML = `
+                <div style="flex:1">
+                    <div class="error-word">${item.word}</div>
+                    <div class="error-source">${item.source}</div>
+                </div>
+                <div class="error-count">错 ${item.count} 次</div>
+                <button class="btn btn-sm btn-outline" onclick="removeError(${originalIndex})">移除</button>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function removeError(index) {
+        errorBook.splice(index, 1);
+        saveData();
+        renderErrorBook();
+    }
+
+    function clearAllErrors() {
+        if (!confirm('确定清空所有错题吗？')) return;
+        errorBook = [];
+        saveData();
+        renderErrorBook();
+    }
+
+    // --- 数据存储 ---
+    function saveData() {
+        localStorage.setItem('vocabularies', JSON.stringify(vocabularies));
+        localStorage.setItem('errorBook', JSON.stringify(errorBook));
+    }
+
+    // --- 备忘录功能 ---
+    function toggleMemo() {
+        const panel = document.getElementById('memoPanel');
+        panel.classList.toggle('open');
+    }
+
+    function autoSaveMemo() {
+        const text = document.getElementById('memoText').value;
+        localStorage.setItem('memoContent', text);
+        
+        const tip = document.getElementById('memoTip');
+        tip.classList.add('show');
+        setTimeout(() => tip.classList.remove('show'), 2000);
+    }
+
+    function loadMemo() {
+        const saved = localStorage.getItem('memoContent');
+        if (saved) {
+            document.getElementById('memoText').value = saved;
+        }
+    }
+</script>
+
+</body>
+</html>
+
+
+
